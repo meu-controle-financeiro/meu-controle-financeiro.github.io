@@ -614,10 +614,10 @@ function cardCompetence(card,dateStr){
 }
 function purchaseParcels(compra){
  const card=state.cartoes.find(c=>c.id===compra.cartaoId); if(!card)return [];
- const base=cardCompetence(card,compra.data), [y,m]=base.split("-").map(Number), n=Number(compra.parcelas), total=Number(compra.valor), pv=Math.round(total/n*100)/100;
+ const base=cardCompetence(card,compra.data), [y,m]=base.split("-").map(Number), n=Number(compra.parcelas), totalC=Math.round(Number(compra.valor)*100), pvC=Math.floor(totalC/n), firstC=totalC-pvC*(n-1);
  const start=Math.max(1,Math.min(n,Math.floor(Number(compra.parcelaAtual))||1));
- let arr=[], used=0;
- for(let i=0;i<n;i++){let val=i===n-1?Math.round((total-used)*100)/100:pv;used+=val;if(i<start-1)continue;arr.push({mes:localISO(new Date(y,m-1+(i-(start-1)),1,12)).slice(0,7),valor:val,numero:i+1,total:n})}
+ let arr=[];
+ for(let i=0;i<n;i++){const val=(i===0?firstC:pvC)/100;if(i<start-1)continue;arr.push({mes:localISO(new Date(y,m-1+(i-(start-1)),1,12)).slice(0,7),valor:val,numero:i+1,total:n})}
  return arr;
 }
 function compraRestante(c){return purchaseParcels(c).reduce((a,p)=>a+p.valor,0)}
