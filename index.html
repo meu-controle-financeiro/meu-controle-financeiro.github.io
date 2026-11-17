@@ -324,7 +324,7 @@
         <div><label for="pCategoria">Categoria</label><select id="pCategoria" required></select></div>
       </div>
       <div class="row">
-        <div><label for="pRec">Recorrência</label><select id="pRec"><option value="1">Única</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option><option value="24">24 meses</option><option value="36">36 meses</option><option value="custom">Outros (digitar)</option></select><div class="qtd-box" id="pQtdBox" hidden><label for="pQtd">Quantos meses?</label><input id="pQtd" type="number" min="1" max="1200" step="1" inputmode="numeric" placeholder="Ex.: 10"></div></div>
+        <div><label for="pRec">Recorrência</label><select id="pRec"><option value="1">Única</option><option value="semanal">Toda semana</option><option value="quinzenal">A cada 15 dias</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option><option value="24">24 meses</option><option value="36">36 meses</option><option value="custom">Outros (digitar)</option></select><div class="qtd-box" id="pQtdBox" hidden><label for="pQtd" id="pQtdLabel">Quantos meses?</label><input id="pQtd" type="number" min="1" max="1200" step="1" inputmode="numeric" placeholder="Ex.: 10"></div></div>
         <div><label for="pObs">Pix ou observação (opcional)</label><input id="pObs" placeholder="Chave Pix, código de barras, anotação..."></div>
         <div></div><div style="align-self:end"><button class="primary">Salvar compromisso</button></div>
       </div>
@@ -344,7 +344,7 @@
         <div><label for="rCategoria">Categoria</label><select id="rCategoria" required></select></div>
       </div>
       <div class="row">
-        <div><label for="rRec">Recorrência</label><select id="rRec"><option value="1">Única</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option><option value="24">24 meses</option><option value="36">36 meses</option><option value="custom">Outros (digitar)</option></select><div class="qtd-box" id="rQtdBox" hidden><label for="rQtd">Quantos meses?</label><input id="rQtd" type="number" min="1" max="1200" step="1" inputmode="numeric" placeholder="Ex.: 10"></div></div>
+        <div><label for="rRec">Recorrência</label><select id="rRec"><option value="1">Única</option><option value="semanal">Toda semana</option><option value="quinzenal">A cada 15 dias</option><option value="3">3 meses</option><option value="6">6 meses</option><option value="12">12 meses</option><option value="24">24 meses</option><option value="36">36 meses</option><option value="custom">Outros (digitar)</option></select><div class="qtd-box" id="rQtdBox" hidden><label for="rQtd" id="rQtdLabel">Quantos meses?</label><input id="rQtd" type="number" min="1" max="1200" step="1" inputmode="numeric" placeholder="Ex.: 10"></div></div>
         <div><label for="rObs">Pix ou observação (opcional)</label><input id="rObs" placeholder="Chave Pix, nome de quem paga, anotação..."></div>
         <div></div><div style="align-self:end"><button class="primary">Salvar recebível</button></div>
       </div>
@@ -647,15 +647,17 @@ document.getElementById("formTransf").onsubmit=e=>{
  state.transferencias.push({id:id(),data:tData.value,origem:tOrigem.value,destino:tDestino.value,valor:Number(tValor.value),descricao:tDesc.value.trim()});
  e.target.reset(); setFormDates(); save();
 };
+function addDaysISO(d,n){const x=dateObj(d);x.setDate(x.getDate()+n);return localISO(x)}
 function saveRecurring(kind, date, desc, value, cat, rec, qtd, obs){
- const count=rec==="custom"?Number(qtd):Number(rec);
- if(rec==="custom"&&!String(qtd).trim()){uiAlert("Em Recorrência, você escolheu \"Outros\". Digite quantos meses a conta vai se repetir.");return false}
- if(!Number.isInteger(count)||count<1||count>1200){uiAlert("Digite uma quantidade de meses entre 1 e 1200, sem vírgula.");return false}
+ const dias=rec==="semanal"?7:rec==="quinzenal"?14:0, digita=rec==="custom"||dias>0, unidade=rec==="semanal"?"semanas":rec==="quinzenal"?"vezes":"meses";
+ const count=digita?Number(qtd):Number(rec);
+ if(digita&&!String(qtd).trim()){uiAlert(rec==="custom"?"Em Recorrência, você escolheu \"Outros\". Digite quantos meses a conta vai se repetir.":`Digite quantas ${unidade} a conta vai se repetir.`);return false}
+ if(!Number.isInteger(count)||count<1||count>1200){uiAlert(`Digite uma quantidade de ${unidade} entre 1 e 1200, sem vírgula.`);return false}
  const group=id();
- for(let i=0;i<count;i++) state[kind].push({id:id(),group,kind,data:addMonthsPreserveDay(date,i),descricao:desc,valor:Number(value),categoriaId:cat,obs:obs||"",baixas:[]});
+ for(let i=0;i<count;i++){const it={id:id(),group,kind,data:dias?addDaysISO(date,dias*i):addMonthsPreserveDay(date,i),descricao:desc,valor:Number(value),categoriaId:cat,obs:obs||"",baixas:[]};if(dias)it.freq=rec;state[kind].push(it)}
  save(); return true;
 }
-function toggleQtd(k){const box=document.getElementById(k+"QtdBox"),on=document.getElementById(k+"Rec").value==="custom";box.hidden=!on;if(on)document.getElementById(k+"Qtd").focus()}
+function toggleQtd(k){const v=document.getElementById(k+"Rec").value,box=document.getElementById(k+"QtdBox"),on=["custom","semanal","quinzenal"].includes(v);box.hidden=!on;document.getElementById(k+"QtdLabel").textContent=v==="semanal"?"Quantas semanas?":v==="quinzenal"?"Quantas vezes (a cada 15 dias)?":"Quantos meses?";if(on)document.getElementById(k+"Qtd").focus()}
 ["p","r"].forEach(k=>{document.getElementById(k+"Rec").addEventListener("change",()=>toggleQtd(k));document.getElementById(k==="p"?"formPagar":"formReceber").addEventListener("reset",()=>setTimeout(()=>toggleQtd(k),0))});
 document.getElementById("lTipo").addEventListener("change",renderSelects);
 document.getElementById("formPagar").onsubmit=e=>{e.preventDefault();if(saveRecurring("pagar",pData.value,pDesc.value.trim(),pValor.value,pCategoria.value,pRec.value,pQtd.value,pObs.value.trim())){e.target.reset();setFormDates()}};
@@ -722,13 +724,14 @@ async function undoLast(kind,itemId){
 async function deleteItem(kind,itemId,scope){const arr=state[kind],item=arr.find(x=>x.id===itemId);if(!item)return;const targets=scope==='one'?[item]:arr.filter(x=>x.group===item.group&&x.data>=item.data);if(targets.some(x=>(x.baixas||[]).length))return uiAlert('A ocorrência selecionada ou uma ocorrência futura possui baixa. Desfaça as baixas antes de excluir; nenhuma ocorrência foi excluída.');if(!(await uiConfirm(targets.length>1?`Excluir esta ocorrência e as ${targets.length-1} seguintes?`:'Excluir esta ocorrência?',{title:'Excluir',okText:'Excluir',danger:true})))return;const ids=new Set(targets.map(x=>x.id));state[kind]=arr.filter(x=>!ids.has(x.id));save()}
 async function editItem(kind,itemId,scope){
  const arr=state[kind], item=arr.find(x=>x.id===itemId); if(!item)return;
- const r=await uiDialog({title:scope==="one"?"Editar esta ocorrência":"Editar esta e as próximas",okText:"Salvar",fields:[{key:"data",label:scope==="one"?"Vencimento":"Vencimento desta (as próximas seguem o mesmo dia)",type:"date",value:item.data},{key:"descricao",label:"Descrição",type:"text",value:item.descricao},{key:"valor",label:"Valor",type:"number",value:item.valor},{key:"obs",label:"Pix ou observação",type:"text",value:item.obs||""}]});
+ const r=await uiDialog({title:scope==="one"?"Editar esta ocorrência":"Editar esta e as próximas",okText:"Salvar",fields:[{key:"data",label:scope==="one"?"Vencimento":(item.freq?"Vencimento desta (as próximas mudam junto)":"Vencimento desta (as próximas seguem o mesmo dia)"),type:"date",value:item.data},{key:"descricao",label:"Descrição",type:"text",value:item.descricao},{key:"valor",label:"Valor",type:"number",value:item.valor},{key:"obs",label:"Pix ou observação",type:"text",value:item.obs||""}]});
  if(!r)return; const desc=r.descricao;
  const raw=r.valor;if(!raw.trim())return uiAlert("Valor inválido.");const val=Number(raw);if(!validValue(val))return uiAlert("Valor inválido.");
  const novaData=r.data; if(!validDate(novaData))return uiAlert("Data de vencimento inválida.");
  const targets=scope==="one"?[item]:arr.filter(x=>x.group===item.group&&x.data>=item.data);
  if(novaData!==item.data){
   if(scope==="one")item.data=novaData;
+  else if(item.freq){const delta=Math.round((dateObj(novaData)-dateObj(item.data))/86400000);targets.forEach(x=>{x.data=addDaysISO(x.data,delta)})}
   else{const base=item.data, mi=d=>{const [y,m]=d.split("-").map(Number);return y*12+m};targets.forEach(x=>{x.data=addMonthsPreserveDay(novaData,mi(x.data)-mi(base))})}
  }
  let skipped=0;
@@ -1006,7 +1009,7 @@ document.getElementById("wipeAll").onclick=async()=>{
 };
 setFormDates();renderAll();
 </script>
-<footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a><br><span style="font-size:12px;opacity:.7">Versão 1.7</span></footer>
+<footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a><br><span style="font-size:12px;opacity:.7">Versão 1.8</span></footer>
 <style>.cp-antiga{display:flex;gap:10px;align-items:center;font-weight:700;margin:0 0 10px;min-height:44px;cursor:pointer}.cp-antiga input{width:22px;height:22px;flex:0 0 22px}#cpAntigaDica{margin:0 0 12px;line-height:1.45}.support-footer{max-width:1100px;margin:8px auto 28px;padding:0 16px;text-align:center;font-size:14px;color:#55615c;line-height:1.5;overflow-wrap:anywhere}.support-footer a{color:#1f4b3f;font-weight:700}</style>
 </body>
 </html>
