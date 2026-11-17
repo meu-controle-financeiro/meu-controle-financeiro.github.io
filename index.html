@@ -261,7 +261,7 @@
         <div><label for="lData">Data</label><input required id="lData" type="date"></div>
         <div><label for="lTipo">Tipo</label><select id="lTipo"><option>Entrada</option><option>Saída</option></select></div>
         <div><label for="lDesc">Descrição</label><input required id="lDesc"></div>
-        <div><label for="lValor">Valor</label><input required id="lValor" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00"></div>
+        <div><label for="lValor">Valor</label><input required id="lValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00"></div>
       </div>
       <div class="row">
         <div><label for="lCategoria">Categoria</label><select required id="lCategoria"></select></div>
@@ -282,7 +282,7 @@
         <div><label for="tData">Data</label><input id="tData" type="date" required></div>
         <div><label for="tOrigem">Conta bancária de origem</label><select id="tOrigem" required></select></div>
         <div><label for="tDestino">Conta bancária de destino</label><select id="tDestino" required></select></div>
-        <div><label for="tValor">Valor</label><input id="tValor" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00" required></div>
+        <div><label for="tValor">Valor</label><input id="tValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
       </div>
       <div class="row-2">
         <div><label for="tDesc">Descrição</label><input id="tDesc" value="Transferência entre contas bancárias"></div>
@@ -300,7 +300,7 @@
       <div class="row">
         <div><label for="cNome">Nome da conta bancária</label><input id="cNome" placeholder="Ex.: Banco do Brasil, Nubank..." required></div>
         <div><label for="cTipo">Tipo</label><input id="cTipo" placeholder="Corrente, poupança, digital..." required></div>
-        <div><label for="cSaldo">Saldo inicial</label><input id="cSaldo" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00" required></div>
+        <div><label for="cSaldo">Saldo inicial</label><input id="cSaldo" type="text" inputmode="numeric" data-money data-signed autocomplete="off" placeholder="R$ 0,00" required></div>
         <div><label for="cInicio">Data de início do saldo</label><input id="cInicio" type="date" required></div>
       </div>
       <button class="primary">Cadastrar</button>
@@ -316,7 +316,7 @@
       <div class="row">
         <div><label for="pData">Vencimento</label><input id="pData" type="date" required></div>
         <div><label for="pDesc">Descrição</label><input id="pDesc" required></div>
-        <div><label for="pValor">Valor</label><input id="pValor" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00" required></div>
+        <div><label for="pValor">Valor</label><input id="pValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
         <div><label for="pCategoria">Categoria</label><select id="pCategoria" required></select></div>
       </div>
       <div class="row">
@@ -336,7 +336,7 @@
       <div class="row">
         <div><label for="rData">Vencimento</label><input id="rData" type="date" required></div>
         <div><label for="rDesc">Descrição</label><input id="rDesc" required></div>
-        <div><label for="rValor">Valor</label><input id="rValor" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00" required></div>
+        <div><label for="rValor">Valor</label><input id="rValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
         <div><label for="rCategoria">Categoria</label><select id="rCategoria" required></select></div>
       </div>
       <div class="row">
@@ -355,7 +355,7 @@
     <form id="formCartao">
       <div class="row">
         <div><label for="ccNome">Nome</label><input id="ccNome" required></div>
-        <div><label for="ccLimite">Limite</label><input id="ccLimite" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00" required></div>
+        <div><label for="ccLimite">Limite</label><input id="ccLimite" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
         <div><label for="ccFecha">Dia de fechamento</label><input id="ccFecha" type="number" min="1" max="31" required></div>
         <div><label for="ccVence">Dia de vencimento</label><input id="ccVence" type="number" min="1" max="31" required></div>
       </div>
@@ -372,7 +372,7 @@
         <div><label for="cpData">Data</label><input id="cpData" type="date" required></div>
         <div><label for="cpCartao">Cartão</label><select id="cpCartao" required></select></div>
         <div><label for="cpDesc">Descrição</label><input id="cpDesc" required></div>
-        <div><label for="cpValor">Valor total</label><input id="cpValor" type="text" inputmode="decimal" data-money autocomplete="off" placeholder="0,00" required></div>
+        <div><label for="cpValor">Valor total</label><input id="cpValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
       </div>
       <div class="row">
         <div><label for="cpCategoria">Categoria</label><select id="cpCategoria" required></select></div>
@@ -447,8 +447,9 @@ function uiDialog(opts){
    if(f.type==="select")input=`<select id="${fid}">${f.options.map(o=>`<option value="${esc(o.value)}"${String(o.value)===String(f.value??"")?" selected":""}>${esc(o.label)}</option>`).join("")}</select>`;
    else{
     const t=f.type==="date"?"date":(["day","parcels"].includes(f.type)?"number":"text");
-    const extra={number:' inputmode="decimal" autocomplete="off"',signed:' inputmode="decimal" autocomplete="off"',day:' min="1" max="31" step="1" inputmode="numeric"',parcels:' min="1" max="1200" step="1" inputmode="numeric"'}[f.type]||"";
-    input=`<input id="${fid}" type="${t}"${extra} value="${esc(f.value??"")}">`;
+    const extra={number:' inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00"',signed:' inputmode="numeric" data-money data-signed autocomplete="off" placeholder="R$ 0,00"',day:' min="1" max="31" step="1" inputmode="numeric"',parcels:' min="1" max="1200" step="1" inputmode="numeric"'}[f.type]||"";
+    const shown=(f.type==="number"||f.type==="signed")?fmtMoneyInput(f.value):(f.value??"");
+    input=`<input id="${fid}" type="${t}"${extra} value="${esc(shown)}">`;
    }
    html+=`<div class="ui-field"><label for="${fid}">${esc(f.label)}</label>${input}${f.hint?`<div class="muted">${esc(f.hint)}</div>`:""}</div>`;
   });
@@ -508,6 +509,16 @@ function dateObj(s){return new Date(s+"T12:00:00")}
 function localISO(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`}
 function todayISO(){return localISO(new Date())}
 function validDate(s){if(!/^\d{4}-\d{2}-\d{2}$/.test(s||""))return false;const d=dateObj(s);return Number.isFinite(d.getTime())&&localISO(d)===s}
+function fmtBRL(n){return "R$ "+Number(n).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}
+function fmtMoneyInput(v){if(v===null||v===undefined||String(v).trim()==="")return "";const n=Number(String(v).includes(",")?normMoney(v):v);if(!Number.isFinite(n))return String(v);return (n<0?"-":"")+fmtBRL(Math.abs(n))}
+function maskMoney(el){
+ const raw=el.value, digits=raw.replace(/\D/g,"").replace(/^0+/,"").slice(0,13);
+ const neg=el.hasAttribute("data-signed")&&raw.includes("-");
+ if(!digits){el.value=neg?"-":"";return}
+ el.value=(neg?"-":"")+fmtBRL(Number(digits)/100);
+ try{const L=el.value.length;el.setSelectionRange(L,L)}catch(_){}
+}
+document.addEventListener("input",e=>{if(e.target&&e.target.matches&&e.target.matches("input[data-money]"))maskMoney(e.target)});
 function normMoney(raw){
  let s=String(raw??"").replace(/R\$/gi,"").replace(/\s/g,"");
  if(!s)return "";
@@ -524,6 +535,7 @@ document.addEventListener("submit",e=>{
   const v=normMoney(el.value);
   if(v==="x"||(el.id!=="cSaldo"&&v.startsWith("-"))){e.preventDefault();e.stopImmediatePropagation();uiAlert("Valor inválido. Use só números, por exemplo 235,90.");el.focus();return}
   el.value=v;
+  setTimeout(()=>{if(el.value&&/^-?\d+(\.\d+)?$/.test(el.value))el.value=fmtMoneyInput(el.value)},0);
  }
 },true);
 function validValue(v,negative=false){return Number.isFinite(v)&&(negative||v>=0)}
