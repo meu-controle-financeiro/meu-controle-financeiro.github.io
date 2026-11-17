@@ -722,10 +722,15 @@ async function undoLast(kind,itemId){
 async function deleteItem(kind,itemId,scope){const arr=state[kind],item=arr.find(x=>x.id===itemId);if(!item)return;const targets=scope==='one'?[item]:arr.filter(x=>x.group===item.group&&x.data>=item.data);if(targets.some(x=>(x.baixas||[]).length))return uiAlert('A ocorrência selecionada ou uma ocorrência futura possui baixa. Desfaça as baixas antes de excluir; nenhuma ocorrência foi excluída.');if(!(await uiConfirm(targets.length>1?`Excluir esta ocorrência e as ${targets.length-1} seguintes?`:'Excluir esta ocorrência?',{title:'Excluir',okText:'Excluir',danger:true})))return;const ids=new Set(targets.map(x=>x.id));state[kind]=arr.filter(x=>!ids.has(x.id));save()}
 async function editItem(kind,itemId,scope){
  const arr=state[kind], item=arr.find(x=>x.id===itemId); if(!item)return;
- const r=await uiDialog({title:scope==="one"?"Editar esta ocorrência":"Editar esta e as próximas",okText:"Salvar",fields:[{key:"descricao",label:"Descrição",type:"text",value:item.descricao},{key:"valor",label:"Valor",type:"number",value:item.valor},{key:"obs",label:"Pix ou observação",type:"text",value:item.obs||""}]});
+ const r=await uiDialog({title:scope==="one"?"Editar esta ocorrência":"Editar esta e as próximas",okText:"Salvar",fields:[{key:"data",label:scope==="one"?"Vencimento":"Vencimento desta (as próximas seguem o mesmo dia)",type:"date",value:item.data},{key:"descricao",label:"Descrição",type:"text",value:item.descricao},{key:"valor",label:"Valor",type:"number",value:item.valor},{key:"obs",label:"Pix ou observação",type:"text",value:item.obs||""}]});
  if(!r)return; const desc=r.descricao;
  const raw=r.valor;if(!raw.trim())return uiAlert("Valor inválido.");const val=Number(raw);if(!validValue(val))return uiAlert("Valor inválido.");
+ const novaData=r.data; if(!validDate(novaData))return uiAlert("Data de vencimento inválida.");
  const targets=scope==="one"?[item]:arr.filter(x=>x.group===item.group&&x.data>=item.data);
+ if(novaData!==item.data){
+  if(scope==="one")item.data=novaData;
+  else{const base=item.data, mi=d=>{const [y,m]=d.split("-").map(Number);return y*12+m};targets.forEach(x=>{x.data=addMonthsPreserveDay(novaData,mi(x.data)-mi(base))})}
+ }
  let skipped=0;
  const obs=(r.obs||"").trim();
  targets.forEach(x=>{x.obs=obs;if(!(x.baixas||[]).length){x.descricao=desc;x.valor=val}else skipped++});
