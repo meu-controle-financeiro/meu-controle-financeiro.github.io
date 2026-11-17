@@ -368,16 +368,18 @@
   <div class="card">
     <h3>Nova compra no cartão</h3>
     <form id="formCompra">
+      <label class="cp-antiga"><input type="checkbox" id="cpAntiga"> Compra antiga, com parcelas que já começaram</label>
+      <div class="muted" id="cpAntigaDica" hidden>Para compras que você já vinha pagando antes de usar o sistema. Informe o valor de <strong>cada parcela</strong>, o total de parcelas e qual parcela vem na próxima fatura. Ex.: TV de 10x de R$ 150,00, e a próxima é a 5ª → só as parcelas 5 a 10 entram no controle. Compras à vista que já estão na fatura atual podem ser lançadas normalmente, com a data em que foram feitas.</div>
       <div class="row">
-        <div><label for="cpData">Data</label><input id="cpData" type="date" required></div>
+        <div id="cpDataBox"><label for="cpData">Data</label><input id="cpData" type="date" required></div>
         <div><label for="cpCartao">Cartão</label><select id="cpCartao" required></select></div>
         <div><label for="cpDesc">Descrição</label><input id="cpDesc" required></div>
-        <div><label for="cpValor">Valor total</label><input id="cpValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
+        <div><label for="cpValor" id="cpValorLabel">Valor total</label><input id="cpValor" type="text" inputmode="numeric" data-money autocomplete="off" placeholder="R$ 0,00" required></div>
       </div>
       <div class="row">
         <div><label for="cpCategoria">Categoria</label><select id="cpCategoria" required></select></div>
-        <div><label for="cpParcelas">Parcelas</label><input id="cpParcelas" type="number" min="1" value="1" required></div>
-        <div></div><div style="align-self:end"><button class="primary">Registrar compra</button></div>
+        <div><label for="cpParcelas" id="cpParcelasLabel">Parcelas</label><input id="cpParcelas" type="number" min="1" value="1" inputmode="numeric" required></div>
+        <div id="cpAtualBox" hidden><label for="cpAtual">Qual parcela vem na próxima fatura?</label><input id="cpAtual" type="number" min="1" step="1" inputmode="numeric" placeholder="Ex.: 5"></div><div style="align-self:end"><button class="primary">Registrar compra</button></div>
       </div>
     </form>
   </div>
@@ -493,7 +495,7 @@ function validateState(s){
  if(!s||typeof s!=='object')throw Error('estrutura');
  const ids=new Set();
  function record(x,fields){if(!x||typeof x!=='object'||typeof x.id!=='string'||! /^[a-zA-Z0-9_-]+$/.test(x.id)||ids.has(x.id))throw Error('id');ids.add(x.id);for(const k of fields){if(!(k in x))throw Error('campo');if(k==='baixas'){if(!Array.isArray(x[k]))throw Error('baixas');continue}if(['valor','saldoInicial','limite','fechamento','vencimento','parcelas'].includes(k)){if(typeof x[k]!=='number'||!validValue(x[k],k==='saldoInicial'||(k==='valor'&&fields.includes('motivo'))))throw Error('numero')}else if(typeof x[k]!=='string')throw Error('texto');if(['data','inicio'].includes(k)&&!validDate(x[k]))throw Error('data')} }
- for(const [key,fieldsFor] of Object.entries(fields)){if(!Array.isArray(s[key]))throw Error('lista');for(const x of s[key]){record(x,fieldsFor);if(['pagar','receber'].includes(key)){if(x.kind!==key)throw Error('kind');for(const b of x.baixas)record(b,['data','valor','contaId']);if(x.baixas.reduce((a,b)=>a+b.valor,0)>x.valor+0.0001)throw Error('baixas excedentes')}if(['lancamentos','categorias'].includes(key)&&!['Entrada','Saída'].includes(x.tipo))throw Error('tipo');if(key==='cartoes'&&![x.fechamento,x.vencimento].every(v=>Number.isInteger(v)&&v>=1&&v<=31))throw Error('dia');if(key==='compras'&&(!Number.isInteger(x.parcelas)||x.parcelas<1||x.parcelas>1200))throw Error('parcelas');if(key==='pagamentosFatura'&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(x.competencia))throw Error('mes')}}
+ for(const [key,fieldsFor] of Object.entries(fields)){if(!Array.isArray(s[key]))throw Error('lista');for(const x of s[key]){record(x,fieldsFor);if(['pagar','receber'].includes(key)){if(x.kind!==key)throw Error('kind');for(const b of x.baixas)record(b,['data','valor','contaId']);if(x.baixas.reduce((a,b)=>a+b.valor,0)>x.valor+0.0001)throw Error('baixas excedentes')}if(['lancamentos','categorias'].includes(key)&&!['Entrada','Saída'].includes(x.tipo))throw Error('tipo');if(key==='cartoes'&&![x.fechamento,x.vencimento].every(v=>Number.isInteger(v)&&v>=1&&v<=31))throw Error('dia');if(key==='compras'&&(!Number.isInteger(x.parcelas)||x.parcelas<1||x.parcelas>1200))throw Error('parcelas');if(key==='compras'&&x.parcelaAtual!==undefined&&(!Number.isInteger(x.parcelaAtual)||x.parcelaAtual<1||x.parcelaAtual>x.parcelas))throw Error('parcela atual');if(key==='pagamentosFatura'&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(x.competencia))throw Error('mes')}}
  const has=(key,id)=>s[key].some(x=>x.id===id);
  for(const key of Object.keys(fields))for(const x of s[key]){if('contaId'in x&&!has('contas',x.contaId))throw Error('conta');if('categoriaId'in x&&!has('categorias',x.categoriaId))throw Error('categoria');if('cartaoId'in x&&!has('cartoes',x.cartaoId))throw Error('cartao');if(key==='transferencias'&&(!has('contas',x.origem)||!has('contas',x.destino)||x.origem===x.destino))throw Error('transferencia');for(const b of x.baixas||[])if(!has('contas',b.contaId))throw Error('conta baixa')}
  return s;
@@ -613,11 +615,13 @@ function cardCompetence(card,dateStr){
 function purchaseParcels(compra){
  const card=state.cartoes.find(c=>c.id===compra.cartaoId); if(!card)return [];
  const base=cardCompetence(card,compra.data), [y,m]=base.split("-").map(Number), n=Number(compra.parcelas), total=Number(compra.valor), pv=Math.round(total/n*100)/100;
+ const start=Math.max(1,Math.min(n,Math.floor(Number(compra.parcelaAtual))||1));
  let arr=[], used=0;
- for(let i=0;i<n;i++){let val=i===n-1?Math.round((total-used)*100)/100:pv;used+=val;arr.push({mes:localISO(new Date(y,m-1+i,1,12)).slice(0,7),valor:val,numero:i+1,total:n})}
+ for(let i=0;i<n;i++){let val=i===n-1?Math.round((total-used)*100)/100:pv;used+=val;if(i<start-1)continue;arr.push({mes:localISO(new Date(y,m-1+(i-(start-1)),1,12)).slice(0,7),valor:val,numero:i+1,total:n})}
  return arr;
 }
-function cardCommitted(cardId){return Math.max(0,state.compras.filter(c=>c.cartaoId===cardId).reduce((a,c)=>a+Number(c.valor),0)-state.pagamentosFatura.filter(p=>p.cartaoId===cardId&&p.data<=todayISO()).reduce((a,p)=>a+Number(p.valor),0))}
+function compraRestante(c){return purchaseParcels(c).reduce((a,p)=>a+p.valor,0)}
+function cardCommitted(cardId){return Math.max(0,state.compras.filter(c=>c.cartaoId===cardId).reduce((a,c)=>a+compraRestante(c),0)-state.pagamentosFatura.filter(p=>p.cartaoId===cardId&&p.data<=todayISO()).reduce((a,p)=>a+Number(p.valor),0))}
 function faturaValue(cardId,m){
  return state.compras.filter(c=>c.cartaoId===cardId).flatMap(c=>purchaseParcels(c).map(p=>({...p,compra:c}))).filter(p=>p.mes===m).reduce((a,p)=>a+p.valor,0)
 }
@@ -662,15 +666,33 @@ document.getElementById("restoreCats").onclick=()=>{
 document.getElementById("formCartao").onsubmit=e=>{
  e.preventDefault(); state.cartoes.push({id:id(),nome:ccNome.value.trim(),limite:Number(ccLimite.value),fechamento:Number(ccFecha.value),vencimento:Number(ccVence.value),contaId:ccConta.value}); e.target.reset(); save();
 };
+function toggleAntiga(){
+ const on=document.getElementById("cpAntiga").checked;
+ document.getElementById("cpAtualBox").hidden=!on; document.getElementById("cpAntigaDica").hidden=!on;
+ document.getElementById("cpDataBox").hidden=on; document.getElementById("cpData").required=!on;
+ document.getElementById("cpAtual").required=on;
+ document.getElementById("cpValorLabel").textContent=on?"Valor de cada parcela":"Valor total";
+ document.getElementById("cpParcelasLabel").textContent=on?"Total de parcelas da compra":"Parcelas";
+}
+document.getElementById("cpAntiga").addEventListener("change",toggleAntiga);
 document.getElementById("formCompra").onsubmit=async e=>{
  e.preventDefault();
  const card=state.cartoes.find(c=>c.id===cpCartao.value); if(!card)return;
  if(!Number.isInteger(Number(cpParcelas.value))||Number(cpParcelas.value)<1||Number(cpParcelas.value)>1200)return uiAlert("Parcelas inválidas (1 a 1200).");
+ const antiga=document.getElementById("cpAntiga").checked, nParc=Number(cpParcelas.value);
+ let atual=1, total=Number(cpValor.value), dataCompra=cpData.value;
+ if(antiga){
+  atual=Number(document.getElementById("cpAtual").value);
+  if(!Number.isInteger(atual)||atual<1||atual>nParc)return uiAlert(`Informe qual parcela vem na próxima fatura: um número de 1 a ${nParc}.`);
+  total=Math.round(Number(cpValor.value)*nParc*100)/100; dataCompra=todayISO();
+ }
+ const nova={id:id(),data:dataCompra,cartaoId:cpCartao.value,descricao:cpDesc.value.trim(),valor:total,categoriaId:cpCategoria.value,parcelas:nParc};
+ if(atual>1)nova.parcelaAtual=atual;
  const committed=cardCommitted(card.id);
- const next=committed+Number(cpValor.value);
+ const next=committed+compraRestante(nova);
  if(next>Number(card.limite)&&!(await uiConfirm("Esta compra ultrapassa o limite cadastrado do cartão. Deseja registrar mesmo assim?",{title:"Limite do cartão",okText:"Registrar mesmo assim"})))return;
- state.compras.push({id:id(),data:cpData.value,cartaoId:cpCartao.value,descricao:cpDesc.value.trim(),valor:Number(cpValor.value),categoriaId:cpCategoria.value,parcelas:Number(cpParcelas.value)});
- e.target.reset(); setFormDates(); save();
+ state.compras.push(nova);
+ e.target.reset(); toggleAntiga(); setFormDates(); save();
 };
 
 async function payItem(kind,itemId){
@@ -770,7 +792,7 @@ function accountUsed(idv){return state.cartoes.some(x=>x.contaId===idv)||state.l
 async function editConta(idv){const x=state.contas.find(a=>a.id===idv);if(!x)return;const fields=[['nome','Nome da conta bancária:','text'],['tipo','Tipo:','text']];let note='';if(!accountUsed(idv))fields.push(['saldoInicial','Saldo inicial:','signed'],['inicio','Data inicial (AAAA-MM-DD):','date']);else note='O saldo inicial e a data inicial estão protegidos porque esta conta bancária já tem movimentações.';const n=await editRecord(x,fields,note);if(n)commitEdit(x,n)}
 async function editTransf(idv){const x=state.transferencias.find(a=>a.id===idv);if(!x)return;const n=await editRecord(x,[['data','Data (AAAA-MM-DD):','date'],['origem','Conta bancária de origem:','contas'],['destino','Conta bancária de destino:','contas'],['valor','Valor:','number'],['descricao','Descrição:','optional']]);if(n){if(n.origem===n.destino)return uiAlert('A conta bancária de origem e a de destino devem ser diferentes.');commitEdit(x,n)}}
 function purchaseHasPayment(x){const months=new Set(purchaseParcels(x).map(p=>p.mes));return state.pagamentosFatura.some(p=>p.cartaoId===x.cartaoId&&months.has(p.competencia))}
-async function editCompra(idv){const x=state.compras.find(a=>a.id===idv);if(!x)return;if(purchaseHasPayment(x))return uiAlert('Compra possui pagamento relacionado. Desfaça os pagamentos antes de editar.');const n=await editRecord(x,[['data','Data (AAAA-MM-DD):','date'],['cartaoId','Cartão:','cartoes'],['descricao','Descrição:','text'],['valor','Valor total:','number'],['categoriaId','Categoria:','categorias'],['parcelas','Parcelas:','parcels']]);if(!n)return;if(purchaseHasPayment(n))return uiAlert('A fatura de destino já possui pagamento. Alteração bloqueada.');const card=state.cartoes.find(c=>c.id===n.cartaoId);const total=cardCommitted(card.id)-(x.cartaoId===card.id?x.valor:0)+n.valor;if(total>card.limite&&!(await uiConfirm('Esta compra ultrapassa o limite cadastrado do cartão. Deseja registrar mesmo assim?',{title:'Limite do cartão',okText:'Registrar mesmo assim'})))return;commitEdit(x,n)}
+async function editCompra(idv){const x=state.compras.find(a=>a.id===idv);if(!x)return;if(x.parcelaAtual===undefined)x.parcelaAtual=1;if(purchaseHasPayment(x))return uiAlert('Compra possui pagamento relacionado. Desfaça os pagamentos antes de editar.');const n=await editRecord(x,[['data','Data (AAAA-MM-DD):','date'],['cartaoId','Cartão:','cartoes'],['descricao','Descrição:','text'],['valor','Valor total da compra (todas as parcelas):','number'],['categoriaId','Categoria:','categorias'],['parcelas','Total de parcelas:','parcels'],['parcelaAtual','Primeira parcela controlada (1 = desde o início):','parcels']]);if(!n)return;if(n.parcelaAtual>n.parcelas)return uiAlert('A primeira parcela controlada não pode ser maior que o total de parcelas.');if(n.parcelaAtual<=1)n.parcelaAtual=1;if(purchaseHasPayment(n))return uiAlert('A fatura de destino já possui pagamento. Alteração bloqueada.');const card=state.cartoes.find(c=>c.id===n.cartaoId);const total=cardCommitted(card.id)-(x.cartaoId===card.id?compraRestante(x):0)+compraRestante({...x,...n});if(total>card.limite&&!(await uiConfirm('Esta compra ultrapassa o limite cadastrado do cartão. Deseja registrar mesmo assim?',{title:'Limite do cartão',okText:'Registrar mesmo assim'})))return;commitEdit(x,n)}
 async function delCompra(idv){const x=state.compras.find(a=>a.id===idv);if(!x)return;if(purchaseHasPayment(x))return uiAlert('Compra possui pagamento relacionado. Desfaça os pagamentos antes de excluir.');if(await uiConfirm('Excluir esta compra e todas as suas parcelas?',{title:'Excluir',okText:'Excluir',danger:true})){state.compras=state.compras.filter(a=>a.id!==idv);save()}}
 async function editCartao(idv){const x=state.cartoes.find(a=>a.id===idv);if(!x)return;const n=await editRecord(x,[['nome','Nome:','text'],['limite','Limite:','number'],['fechamento','Dia de fechamento:','day'],['vencimento','Dia de vencimento:','day'],['contaId','Conta bancária usada nos próximos pagamentos:','contas']]);if(!n)return;if(n.fechamento!==x.fechamento){const oldClose=x.fechamento;const before=state.compras.filter(c=>c.cartaoId===idv).map(c=>({c,months:purchaseParcels(c).map(p=>p.mes)}));x.fechamento=n.fechamento;const blocked=before.some(({c,months})=>{const next= purchaseParcels(c).map(p=>p.mes);return months.some((m,i)=>m!==next[i]&&state.pagamentosFatura.some(p=>p.cartaoId===idv&&(p.competencia===m||p.competencia===next[i]))) });x.fechamento=oldClose;if(blocked)return uiAlert('O novo fechamento altera faturas com pagamento relacionado. Desfaça esses pagamentos antes de mudar o fechamento.')}commitEdit(x,n)}
 async function undoInvoicePayment(idv){const x=state.pagamentosFatura.find(p=>p.id===idv);if(!x)return;if(await uiConfirm('Desfazer o pagamento de '+money(x.valor)+' em '+fmtDate(x.data)+', fatura '+fmtMonth(x.competencia)+'?',{okText:'Desfazer pagamento'})){state.pagamentosFatura=state.pagamentosFatura.filter(p=>p.id!==idv);save()}}
@@ -955,6 +977,6 @@ document.getElementById("wipeAll").onclick=async()=>{
 setFormDates();renderAll();
 </script>
 <footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a></footer>
-<style>.support-footer{max-width:1100px;margin:8px auto 28px;padding:0 16px;text-align:center;font-size:14px;color:#55615c;line-height:1.5;overflow-wrap:anywhere}.support-footer a{color:#1f4b3f;font-weight:700}</style>
+<style>.cp-antiga{display:flex;gap:10px;align-items:center;font-weight:700;margin:0 0 10px;min-height:44px;cursor:pointer}.cp-antiga input{width:22px;height:22px;flex:0 0 22px}#cpAntigaDica{margin:0 0 12px;line-height:1.45}.support-footer{max-width:1100px;margin:8px auto 28px;padding:0 16px;text-align:center;font-size:14px;color:#55615c;line-height:1.5;overflow-wrap:anywhere}.support-footer a{color:#1f4b3f;font-weight:700}</style>
 </body>
 </html>
