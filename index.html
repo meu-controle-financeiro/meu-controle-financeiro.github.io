@@ -499,7 +499,7 @@ function validateState(s){
  if(!s||typeof s!=='object')throw Error('estrutura');
  const ids=new Set();
  function record(x,fields){if(!x||typeof x!=='object'||typeof x.id!=='string'||! /^[a-zA-Z0-9_-]+$/.test(x.id)||ids.has(x.id))throw Error('id');ids.add(x.id);for(const k of fields){if(!(k in x))throw Error('campo');if(k==='baixas'){if(!Array.isArray(x[k]))throw Error('baixas');continue}if(['valor','saldoInicial','limite','fechamento','vencimento','parcelas'].includes(k)){if(typeof x[k]!=='number'||!validValue(x[k],k==='saldoInicial'||(k==='valor'&&fields.includes('motivo'))))throw Error('numero')}else if(typeof x[k]!=='string')throw Error('texto');if(['data','inicio'].includes(k)&&!validDate(x[k]))throw Error('data')} }
- for(const [key,fieldsFor] of Object.entries(fields)){if(!Array.isArray(s[key]))throw Error('lista');for(const x of s[key]){record(x,fieldsFor);if(['pagar','receber'].includes(key)){if(x.kind!==key)throw Error('kind');for(const b of x.baixas)record(b,['data','valor','contaId']);if(x.baixas.reduce((a,b)=>a+b.valor,0)>x.valor+0.0001)throw Error('baixas excedentes')}if(['lancamentos','categorias'].includes(key)&&!['Entrada','Saída'].includes(x.tipo))throw Error('tipo');if(key==='cartoes'&&![x.fechamento,x.vencimento].every(v=>Number.isInteger(v)&&v>=1&&v<=31))throw Error('dia');if(key==='compras'&&(!Number.isInteger(x.parcelas)||x.parcelas<1||x.parcelas>1200))throw Error('parcelas');if(key==='compras'&&x.parcelaAtual!==undefined&&(!Number.isInteger(x.parcelaAtual)||x.parcelaAtual<1||x.parcelaAtual>x.parcelas))throw Error('parcela atual');if(key==='pagamentosFatura'&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(x.competencia))throw Error('mes')}}
+ for(const [key,fieldsFor] of Object.entries(fields)){if(!Array.isArray(s[key]))throw Error('lista');for(const x of s[key]){record(x,fieldsFor);if(['pagar','receber'].includes(key)){if(x.kind!==key)throw Error('kind');for(const b of x.baixas)record(b,['data','valor','contaId']);for(const b of x.baixas){if(b.desconto!==undefined&&!(Number.isFinite(b.desconto)&&b.desconto>=0))throw Error('desconto');if(b.juros!==undefined&&!(Number.isFinite(b.juros)&&b.juros>=0))throw Error('juros')}if(x.baixas.reduce((a,b)=>a+Number(b.valor)+Number(b.desconto||0)-Number(b.juros||0),0)>x.valor+0.0001)throw Error('baixas excedentes')}if(['lancamentos','categorias'].includes(key)&&!['Entrada','Saída'].includes(x.tipo))throw Error('tipo');if(key==='cartoes'&&![x.fechamento,x.vencimento].every(v=>Number.isInteger(v)&&v>=1&&v<=31))throw Error('dia');if(key==='compras'&&(!Number.isInteger(x.parcelas)||x.parcelas<1||x.parcelas>1200))throw Error('parcelas');if(key==='compras'&&x.parcelaAtual!==undefined&&(!Number.isInteger(x.parcelaAtual)||x.parcelaAtual<1||x.parcelaAtual>x.parcelas))throw Error('parcela atual');if(key==='pagamentosFatura'&&!/^\d{4}-(0[1-9]|1[0-2])$/.test(x.competencia))throw Error('mes')}}
  const has=(key,id)=>s[key].some(x=>x.id===id);
  for(const key of Object.keys(fields))for(const x of s[key]){if('contaId'in x&&!has('contas',x.contaId))throw Error('conta');if('categoriaId'in x&&!has('categorias',x.categoriaId))throw Error('categoria');if('cartaoId'in x&&!has('cartoes',x.cartaoId))throw Error('cartao');if(key==='transferencias'&&(!has('contas',x.origem)||!has('contas',x.destino)||x.origem===x.destino))throw Error('transferencia');for(const b of x.baixas||[])if(!has('contas',b.contaId))throw Error('conta baixa')}
  return s;
@@ -605,7 +605,8 @@ function balanceAt(contaId, cutoff){
  return bal;
 }
 function totalBalancesAt(cutoff){return state.contas.reduce((a,c)=>a+balanceAt(c.id,cutoff),0)}
-function itemPaidUntil(item,cutoff){return (item.baixas||[]).filter(b=>b.data<=cutoff).reduce((a,b)=>a+Number(b.valor),0)}
+function baixaCobre(b){return Number(b.valor)+Number(b.desconto||0)-Number(b.juros||0)}
+function itemPaidUntil(item,cutoff){return (item.baixas||[]).filter(b=>b.data<=cutoff).reduce((a,b)=>a+baixaCobre(b),0)}
 function itemStatus(item,cutoff){
  const paid=itemPaidUntil(item,cutoff), v=Number(item.valor);
  if(paid<=0)return "Pendente"; if(paid+0.0001>=v)return item.kind==="receber"?"Recebido":"Pago"; return "Parcial";
@@ -712,10 +713,24 @@ async function payItem(kind,itemId){
   {key:"conta",label:"Conta bancária",type:"select",value:state.contas[0].id,options:contaOptions()},
   {key:"obs",label:"Observação (opcional)",type:"text",value:""}]});
  if(!r)return;
- const value=Number(r.valor); if(!r.valor.trim()||!validValue(value)||!value||value<=0||value>pending+0.0001)return uiAlert(`Valor inválido. Informe um valor maior que zero e de até ${money(pending)}.`);
+ const value=Number(r.valor); if(!r.valor.trim()||!validValue(value)||!value||value<=0)return uiAlert("Valor inválido. Informe um valor maior que zero.");
+ let desconto=0, juros=0; const rec=kind==="receber";
+ if(value<pending-0.004){
+  const dif=Math.round((pending-value)*100)/100;
+  const q=await uiDialog({title:rec?"Recebeu menos que o valor":"Pagou menos que o valor",message:`Faltam ${money(dif)} para ${rec?"completar":"quitar"} esta conta.\nIsso foi um desconto (por exemplo, por pagar antes do vencimento)?`,okText:`Foi desconto, ${rec?"marcar como recebida":"quitar a conta"}`,cancelText:`Não, foi ${rec?"recebimento":"pagamento"} parcial`});
+  if(q!==null)desconto=dif;
+ }else if(value>pending+0.004){
+  const dif=Math.round((value-pending)*100)/100;
+  const q=await uiDialog({title:rec?"Recebeu mais que o valor":"Pagou mais que o valor",message:`O valor é ${money(dif)} maior que o pendente (${money(pending)}).\nEssa diferença foi juros ou multa?`,okText:"Sim, foi juros ou multa",cancelText:"Corrigir o valor"});
+  if(q===null)return;
+  juros=dif;
+ }
  const data=r.data; if(!validDate(data))return uiAlert("Data inválida.");
  const contaId=state.contas.some(c=>c.id===r.conta)?r.conta:null; if(!contaId)return;
- item.baixas=item.baixas||[]; item.baixas.push({id:id(),data,valor:value,contaId,obs:r.obs||""}); save();
+ const nb={id:id(),data,valor:value,contaId,obs:r.obs||""};
+ if(desconto>0){nb.desconto=desconto;if(!nb.obs)nb.obs=`Desconto de ${money(desconto)}`}
+ if(juros>0){nb.juros=juros;if(!nb.obs)nb.obs=`Juros/multa de ${money(juros)}`}
+ item.baixas=item.baixas||[]; item.baixas.push(nb); save();
 }
 async function undoLast(kind,itemId){
  const item=state[kind].find(x=>x.id===itemId); if(!item?.baixas?.length)return uiAlert("Este item ainda não tem nenhuma baixa.");
@@ -893,6 +908,7 @@ function itemCard(kind,x,cutoff){
     <div class="ic-top"><div class="ic-title">${esc(x.descricao)}</div><div class="ic-value">${money(x.valor)}</div></div>
     <div class="ic-meta"><span class="badge ${cls}">${label}</span><span>${isPay?"Vence":"Recebe"} ${fmtDate(x.data)}</span><span class="muted">${esc(catName(x.categoriaId))}${parc}</span></div>
     ${paid>0&&!done?`<div class="ic-meta"><span>${isPay?"Pago":"Recebido"} ${money(paid)}</span><b>Falta ${money(pend)}</b></div>`:""}
+    ${(()=>{const bs=(x.baixas||[]).filter(b=>b.data<=cutoff),d=bs.reduce((a,b)=>a+Number(b.desconto||0),0),j=bs.reduce((a,b)=>a+Number(b.juros||0),0);if(!(d>0||j>0))return "";const cash=bs.reduce((a,b)=>a+Number(b.valor),0);return `<div class="ic-meta"><span>${isPay?"Pago":"Recebido"} ${money(cash)}</span>${d>0?`<span class="good">desconto ${money(d)}</span>`:""}${j>0?`<span class="bad">juros ${money(j)}</span>`:""}</div>`})()}
     ${x.obs?`<div class="ic-obs"><span class="obs-text">${esc(x.obs)}</span><button type="button" class="copy-btn" onclick="copyObs(this,'${kind}','${x.id}')">Copiar</button></div>`:""}
     <div class="ic-actions">
      ${done?"":`<button type="button" class="pay-btn" onclick="payItem('${kind}','${x.id}')">${isPay?"Pagar":"Receber"}</button>`}
@@ -1010,7 +1026,7 @@ document.getElementById("wipeAll").onclick=async()=>{
 };
 setFormDates();renderAll();
 </script>
-<footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a><br><span style="font-size:12px;opacity:.7">Versão 1.10</span></footer>
+<footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a><br><span style="font-size:12px;opacity:.7">Versão 1.11</span></footer>
 <style>.cp-antiga{display:flex;gap:10px;align-items:center;font-weight:700;margin:0 0 10px;min-height:44px;cursor:pointer}.cp-antiga input{width:22px;height:22px;flex:0 0 22px}#cpAntigaDica{margin:0 0 12px;line-height:1.45}.support-footer{max-width:1100px;margin:8px auto 28px;padding:0 16px;text-align:center;font-size:14px;color:#55615c;line-height:1.5;overflow-wrap:anywhere}.support-footer a{color:#1f4b3f;font-weight:700}</style>
 </body>
 </html>
