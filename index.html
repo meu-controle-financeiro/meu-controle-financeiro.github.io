@@ -304,7 +304,7 @@
       <div class="row">
         <div><label for="cNome">Nome da conta bancária</label><input id="cNome" placeholder="Ex.: Banco do Brasil, Nubank..." required></div>
         <div><label for="cTipo">Tipo</label><input id="cTipo" placeholder="Corrente, poupança, digital..." required></div>
-        <div><label for="cSaldo">Saldo inicial</label><input id="cSaldo" type="text" inputmode="numeric" data-money data-signed autocomplete="off" placeholder="R$ 0,00" required></div>
+        <div><label for="cSaldo">Saldo inicial</label><input id="cSaldo" type="text" inputmode="numeric" data-money data-signed autocomplete="off" placeholder="R$ 0,00 (opcional)"></div>
         <div><label for="cInicio">Data de início do saldo</label><input id="cInicio" type="date" required></div>
       </div>
       <button class="primary">Cadastrar</button>
@@ -520,7 +520,7 @@ function fmtMoneyInput(v){if(v===null||v===undefined||String(v).trim()==="")retu
 function maskMoney(el){
  const raw=el.value, digits=raw.replace(/\D/g,"").replace(/^0+/,"").slice(0,13);
  const neg=el.hasAttribute("data-signed")&&raw.includes("-");
- if(!digits){el.value=neg?"-":"";return}
+ if(!digits){el.value=/\d/.test(raw)?fmtBRL(0):(neg?"-":"");return}
  el.value=(neg?"-":"")+fmtBRL(Number(digits)/100);
  try{const L=el.value.length;el.setSelectionRange(L,L)}catch(_){}
 }
@@ -636,7 +636,7 @@ function faturaPaidUntil(cardId,m,cutoff){
 
 document.getElementById("formConta").onsubmit=e=>{
  e.preventDefault();
- state.contas.push({id:id(),nome:cNome.value.trim(),tipo:cTipo.value.trim(),saldoInicial:Number(cSaldo.value),inicio:cInicio.value});
+ state.contas.push({id:id(),nome:cNome.value.trim(),tipo:cTipo.value.trim(),saldoInicial:Number(cSaldo.value)||0,inicio:cInicio.value});
  e.target.reset(); setFormDates(); save();
 };
 document.getElementById("formLanc").onsubmit=e=>{
@@ -1039,7 +1039,7 @@ async function pedirLicenca(corrigir){
 document.addEventListener("DOMContentLoaded",mostrarLicenca);
 if(!getMeta().licenca)setTimeout(()=>pedirLicenca(false),700);
 </script>
-<footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a><br><span id="licenca" style="font-size:13px"></span><br><span style="font-size:12px;opacity:.7">Versão 1.12 · Licença individual: não compartilhe o link</span></footer>
+<footer class="support-footer">Dúvidas ou problemas? Fale comigo: <a href="mailto:meucontrolefinanceiro.suporte1@gmail.com">meucontrolefinanceiro.suporte1@gmail.com</a><br><span id="licenca" style="font-size:13px"></span><br><span style="font-size:12px;opacity:.7">Versão 1.13 · Licença individual: não compartilhe o link</span></footer>
 <style>.cp-antiga{display:flex;gap:10px;align-items:center;font-weight:700;margin:0 0 10px;min-height:44px;cursor:pointer}.cp-antiga input{width:22px;height:22px;flex:0 0 22px}#cpAntigaDica{margin:0 0 12px;line-height:1.45}.support-footer{max-width:1100px;margin:8px auto 28px;padding:0 16px;text-align:center;font-size:14px;color:#55615c;line-height:1.5;overflow-wrap:anywhere}.support-footer a{color:#1f4b3f;font-weight:700}</style>
 </body>
 </html>
